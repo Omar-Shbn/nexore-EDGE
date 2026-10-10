@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selective Redundancy Replay</title>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f6f5f2; --surface:#ffffff; --surface-2:#f1f0ec;
+  --ink:#0b0b0b; --ink-2:#52514e; --ink-3:#6b6a65; --line:#e3e2dd;
+  --wifi:#1baf7a; --g5:#6250d6; --leo:#eda100;
+  --pol-B0:#eb6834; --pol-B1:#1baf7a; --pol-B2:#eda100; --pol-P:#2a78d6;
+  --bad:#d63a39;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#121211; --surface:#1a1a19; --surface-2:#242422;
+    --ink:#f0efec; --ink-2:#c3c2b7; --ink-3:#9a998f; --line:#35342f;
+    --wifi:#199e70; --g5:#9085e9; --leo:#c98500;
+    --pol-B0:#d95926; --pol-B1:#199e70; --pol-B2:#c98500; --pol-P:#3987e5;
+    --bad:#e66767;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#121211; --surface:#1a1a19; --surface-2:#242422;
+  --ink:#f0efec; --ink-2:#c3c2b7; --ink-3:#9a998f; --line:#35342f;
+  --wifi:#199e70; --g5:#9085e9; --leo:#c98500;
+  --pol-B0:#d95926; --pol-B1:#199e70; --pol-B2:#c98500; --pol-P:#3987e5;
+  --bad:#e66767;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-variant-numeric:tabular-nums}
+.wrap{max-width:1200px;margin:0 auto;padding:22px 16px 56px}
+h1{font-size:clamp(22px,3.4vw,32px);line-height:1.15;margin:0 0 6px;letter-spacing:-.01em}
+.sub{color:var(--ink-2);margin:0 0 18px;max-width:72ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--pol-P);outline-offset:2px}
+
+/* controls */
+.controls{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-end;padding:14px 16px;margin-bottom:12px}
+.ctl .lab{display:block;font-size:12px;color:var(--ink-3);margin-bottom:5px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface-2)}
+.seg button{border:0;background:transparent;color:var(--ink-2);padding:7px 12px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface);font-weight:600}
+.playrow{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:center;flex:1 1 360px;min-width:0}
+.btn{border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:7px 14px;cursor:pointer;font-weight:600}
+.btn.primary{background:var(--pol-P);border-color:var(--pol-P);color:#fff;min-width:92px}
+.play-t{flex:none;margin-left:auto;color:var(--ink-2);font-size:13px;text-align:right}
+input[type=range]{flex:1 1 140px;min-width:100px;accent-color:var(--pol-P)}
+select{border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:7px 8px}
+
+/* route */
+.route{padding:14px 16px;margin-bottom:12px}
+.route-top{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--ink-2);margin-bottom:8px}
+.legs{position:relative;display:flex;height:34px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.leg{display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink-2);
+  background:var(--surface-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+.leg+.leg{border-left:1px solid var(--line)}
+.leg b{font-weight:inherit}
+@media (max-width:620px){.ln{display:none}}
+.leg.on{background:color-mix(in srgb,var(--pol-P) 22%,var(--surface));color:var(--ink);font-weight:700;box-shadow:inset 0 -3px 0 var(--pol-P)}
+.veh{position:absolute;top:-2px;bottom:-2px;width:3px;background:var(--pol-P);border-radius:2px;
+  transform:translateX(-1.5px);box-shadow:0 0 0 2px var(--surface)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--ink-2);margin:2px 2px 12px}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.sw{display:inline-block;width:22px;height:10px;border-radius:3px}
+.sw.pale{background:color-mix(in srgb,var(--g5) 25%,transparent)}
+.sw.solid{background:var(--g5)}
+.sw.thin{height:4px;background:var(--g5)}
+.sw.hole{background:repeating-linear-gradient(135deg,var(--ink-3) 0 1.5px,transparent 1.5px 5px);opacity:.7}
+.sw.win{background:color-mix(in srgb,var(--pol-P) 22%,transparent);outline:1px solid color-mix(in srgb,var(--pol-P) 55%,transparent)}
+.sw.bad{background:var(--bad)}
+
+/* panels */
+.panels{display:grid;grid-template-columns:1fr;gap:12px}
+@media (min-width:940px){.panels{grid-template-columns:1fr 1fr}}
+.panel{padding:16px;min-width:0}
+.p-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px;
+  border:1.5px solid var(--c,var(--ink-3));border-radius:999px;padding:2px 10px 2px 8px;white-space:nowrap}
+.badge::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c,var(--ink-3))}
+.p-head h2{font-size:16px;margin:0;line-height:1.25}
+.p-blurb{margin:0 0 10px;color:var(--ink-2);font-size:13.5px;min-height:2.9em}
+.status{display:flex;gap:9px;align-items:flex-start;background:var(--surface-2);border-radius:10px;
+  padding:9px 12px;margin-bottom:10px;font-size:14px;min-height:64px}
+.status i{flex:none;width:10px;height:10px;border-radius:50%;margin-top:5px;background:var(--ink-3)}
+.status[data-tone="win"] i{background:var(--pol-P)}
+.status[data-tone="bad"] i{background:var(--bad)}
+.status[data-tone="bad"]{outline:1px solid color-mix(in srgb,var(--bad) 55%,transparent)}
+.lanes{position:relative;margin-bottom:10px}
+canvas{display:block;width:100%;touch-action:pan-y;cursor:crosshair}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{border:1px solid var(--line);border-radius:10px;padding:9px 11px;min-width:0}
+.k-l{font-size:11.5px;color:var(--ink-3);line-height:1.25}
+.k-v{font-size:24px;font-weight:700;line-height:1.2;letter-spacing:-.01em;margin-top:2px;white-space:nowrap}
+.k-v small{font-size:13px;font-weight:600;color:var(--ink-2);margin-left:3px}
+.k-s{font-size:12px;color:var(--ink-2);min-height:1.2em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k-v.bad{color:var(--bad)}
+.bar{height:4px;border-radius:2px;background:var(--surface-2);margin-top:5px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ink-2);border-radius:2px}
+.gauge{margin-top:10px;font-size:12.5px;color:var(--ink-2)}
+.g-row{display:flex;justify-content:space-between;gap:10px;margin-bottom:5px}
+.g-bar{position:relative;height:8px;border-radius:4px;background:var(--surface-2)}
+.g-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--pol-P)}
+.g-bar u{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);text-decoration:none}
+
+/* feed + table */
+.below{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+@media (min-width:940px){.below{grid-template-columns:5fr 7fr}}
+.box{padding:16px;min-width:0}
+.box h3{margin:0 0 10px;font-size:15px}
+.feed{list-style:none;margin:0;padding:0;font-size:13.5px}
+.feed li{display:grid;grid-template-columns:58px 12px 1fr;gap:8px;align-items:baseline;
+  padding:5px 0;border-top:1px solid var(--line)}
+.feed li:first-child{border-top:0}
+.feed time{color:var(--ink-3);font-size:12.5px}
+.feed .d{width:8px;height:8px;border-radius:50%;background:var(--ink-3);align-self:center}
+.feed li[data-who="L"] .d{background:var(--c-left)}
+.feed li[data-who="R"] .d{background:var(--pol-P)}
+.feed li.bad .t{color:var(--bad);font-weight:600}
+.feed .w{font-weight:700;margin-right:6px}
+.empty{color:var(--ink-3);font-size:13px}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px}
+th,td{text-align:right;padding:8px 8px;border-top:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--ink-3);font-size:12px;border-top:0;vertical-align:bottom}
+th:first-child,td:first-child{text-align:left}
+tr.hl td{background:var(--surface-2)}
+td small{display:block;color:var(--ink-3);font-size:11.5px;font-weight:400}
+.note{font-size:12.5px;color:var(--ink-3);margin:10px 0 0}
+.foot{margin-top:18px;font-size:12.5px;color:var(--ink-3);max-width:90ch}
+#tip{position:fixed;z-index:10;pointer-events:none;background:var(--ink);color:var(--surface);
+  font-size:12px;line-height:1.45;padding:6px 9px;border-radius:8px;white-space:pre;opacity:0;transition:opacity .08s}
+#err{margin:12px 0;padding:10px 12px;border:1px solid var(--bad);border-radius:10px;color:var(--bad)}
+.theme{margin-left:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Same journey, same traffic, two gateways</h1>
+  <p class="sub">A vehicle drives depot → urban → highway → rural fringe → remote site (and back) carrying a voice call, telemetry, live video and bulk sync. Replay of logged simulation runs: nothing here is live or hand-drawn.</p>
+  <div id="err" hidden></div>
+
+  <section class="card controls" aria-label="Replay controls">
+    <div class="ctl"><span class="lab">Highway speed</span>
+      <div class="seg" id="seg-speed" role="group" aria-label="Highway speed"></div></div>
+    <div class="ctl"><span class="lab">Direction</span>
+      <div class="seg" id="seg-dir" role="group" aria-label="Direction">
+        <button data-v="outbound" aria-pressed="true">Outbound</button>
+        <button data-v="return" aria-pressed="false">Return</button></div></div>
+    <div class="ctl"><span class="lab">Compare ours against</span>
+      <div class="seg" id="seg-vs" role="group" aria-label="Baseline to compare against">
+        <button data-v="B0" aria-pressed="true">B0 single link</button>
+        <button data-v="B1" aria-pressed="false">B1 minRTT</button>
+        <button data-v="B2" aria-pressed="false">B2 duplicate all</button></div></div>
+    <div class="ctl"><span class="lab">Playback speed</span>
+      <select id="rate" aria-label="Playback speed">
+        <option value="1">1×</option><option value="5">5×</option>
+        <option value="10" selected>10×</option><option value="30">30×</option></select></div>
+    <button class="btn theme" id="theme" type="button">Dark mode</button>
+    <div class="playrow">
+      <button class="btn primary" id="play" type="button">▶ Play</button>
+      <input id="scrub" type="range" min="0" max="100" step="0.1" value="0" aria-label="Journey time">
+      <span class="play-t" id="clock">0.0 / 0 s</span>
+    </div>
+  </section>
+
+  <section class="card route" aria-label="Route position">
+    <div class="route-top"><span id="route-l">Position</span><span id="route-r"></span></div>
+    <div class="legs" id="legs"></div>
+  </section>
+
+  <div class="legend" aria-label="Legend">
+    <span><i class="sw pale"></i>link usable (ground truth, the gateway never sees this)</span>
+    <span><i class="sw solid"></i>link carrying traffic</span>
+    <span><i class="sw thin"></i>link carrying the duplicate copy</span>
+    <span><i class="sw win"></i>predicted protection window</span>
+    <span><i class="sw hole"></i>no link usable at all</span>
+    <span><i class="sw bad"></i>audible voice outage</span>
+  </div>
+
+  <section class="panels" id="panels" aria-label="Gateway comparison"></section>
+
+  <div class="below">
+    <section class="card box" aria-label="Event feed">
+      <h3>What just happened</h3>
+      <ol class="feed" id="feed"></ol>
+    </section>
+    <section class="card box" aria-label="Results table">
+      <h3>Results: this journey vs the whole fleet</h3>
+      <div class="tbl-wrap"><table id="tbl"></table></div>
+      <p class="note" id="tbl-note"></p>
+    </section>
+  </div>
+
+  <p class="foot">Link usability is shown from simulator ground truth; the gateways decide from monitor features only (radio samples and their own probes), never from the trace. Predictor and T_guard are derived on training routes disjoint from this journey. Replay of the <code>edgesim</code> simulation layer; emulation results are reported separately.</p>
+</div>
+<div id="tip" role="status"></div>
+
+<script>
+const DATA = /*__DATA__*/null;
+</script>
+<script>
+'use strict';
+window.addEventListener('error', e => {
+  const el = document.getElementById('err');
+  el.hidden = false; el.textContent = 'Script error: ' + e.message + ' (line ' + e.lineno + ')';
+});
+
+const root = document.documentElement;
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const f = (x, d = 1) => (x == null || !isFinite(x)) ? '–' : Number(x).toFixed(d);
+
+const DT = DATA.meta.dt;
+const TECHS = ['wifi', '5g', 'leo'];
+const TSHORT = {wifi: 'Wi-Fi', '5g': '5G', leo: 'LEO'};
+const POLS = {
+  B0: {title: 'Single link, break-before-make',
+       blurb: 'What a normal device does today: one link, and it switches only after that link has failed.'},
+  B1: {title: 'Multipath, minRTT (MPTCP-like)',
+       blurb: 'Every link attached, traffic on the fastest path, failing over after about a second of detected loss.'},
+  B2: {title: 'Always duplicate everything',
+       blurb: 'Every flow on the two best links all the time: the continuity ceiling, and its bill.'},
+  P:  {title: 'Predictive selective redundancy (ours)',
+       blurb: 'Forecast each link’s remaining life. Inside the predicted window only: duplicate voice and telemetry, pre-switch video, defer bulk.'},
+};
+const SHORT = {B0: 'single link', B1: 'minRTT multipath', B2: 'duplicate everything', P: 'predictive (ours)'};
+const LEGN = {urban: 'Depot / urban', highway: 'Highway', fringe: 'Rural fringe', remote: 'Remote site'};
+
+// ---- state ------------------------------------------------------------------
+const S = {speed: 120, dir: 'outbound', vs: 'B0', t: 0, playing: false, rate: 10};
+{
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get('s') && DATA.meta.speeds.includes(+h.get('s'))) S.speed = +h.get('s');
+  if (h.get('d') && DATA.meta.dirs.includes(h.get('d'))) S.dir = h.get('d');
+  if (h.get('vs') && ['B0', 'B1', 'B2'].includes(h.get('vs'))) S.vs = h.get('vs');
+  if (h.get('r') && [1, 5, 10, 30].includes(+h.get('r'))) S.rate = +h.get('r');
+  if (h.get('theme') === 'dark' || h.get('theme') === 'light') root.dataset.theme = h.get('theme');
+  S.t = h.get('t') ? Math.max(0, +h.get('t')) : 0;
+}
+const skey = () => S.speed + '_' + S.dir;
+const scen = () => DATA.scenarios[skey()];
+const dur = () => scen().dur;
+
+// ---- css colours for canvas ----------------------------------------------------
+let cssCache = null;
+function css(n) {
+  if (!cssCache) {
+    const cs = getComputedStyle(root);
+    cssCache = {};
+    ['--bg', '--surface', '--surface-2', '--ink', '--ink-2', '--ink-3', '--line', '--wifi', '--g5',
+     '--leo', '--pol-P', '--bad', '--pol-B0', '--pol-B1', '--pol-B2']
+      .forEach(k => cssCache[k] = cs.getPropertyValue(k).trim());
+  }
+  return cssCache[n];
+}
+const techColor = k => css(['--wifi', '--g5', '--leo'][k]);
+
+// ---- per-run preparation (unpack the packed per-tick codes) --------------------
+const cache = {};
+function prepRun(key, pol) {
+  const id = key + '|' + pol;
+  if (cache[id]) return cache[id];
+  const run = DATA.scenarios[key].runs[pol], c = run.code, n = c.length;
+  const act = new Uint8Array(n), win = new Uint8Array(n), voip = new Uint8Array(n),
+        st = new Uint8Array(n), dup = new Uint8Array(n), silent = new Uint16Array(n);
+  const vcum = new Uint32Array(n + 1), scum = new Float32Array(n + 1);
+  for (let i = 0; i < n; i++) {
+    const v = c[i];
+    act[i] = v & 3; win[i] = (v >> 2) & 1; voip[i] = (v >> 3) & 7;
+    st[i] = (v >> 6) & 1; dup[i] = (v >> 7) & 3;
+    silent[i] = voip[i] === 0 ? (i ? silent[i - 1] + 1 : 1) : 0;
+    vcum[i + 1] = vcum[i] + voip[i];
+    scum[i + 1] = scum[i] + (st[i] ? DT : 0);
+  }
+  // events this gateway would be seen to produce
+  const ev = [];
+  for (let i = 1; i < n; i++) {
+    const t = i * DT;
+    if (act[i] !== act[i - 1] && act[i] < 3 && act[i - 1] < 3)
+      ev.push({t, text: 'Switched to ' + TSHORT[TECHS[act[i]]]});
+    if (win[i] && !win[i - 1]) ev.push({t, text: 'Failure predicted: protection window opened'});
+    if (!win[i] && win[i - 1]) ev.push({t, text: 'Window closed: back to a single link'});
+    if (dup[i] && dup[i] !== dup[i - 1])
+      ev.push({t, text: 'Voice duplicated on ' + TSHORT[TECHS[act[i]]] + ' + ' + TSHORT[TECHS[dup[i] - 1]]});
+  }
+  for (const [s0, d] of run.gaps)
+    ev.push({t: s0 + d, text: 'Voice back after ' + f(d, 1) + ' s of silence', bad: true});
+  ev.sort((a, b) => a.t - b.t);
+  return cache[id] = {run, n, act, win, voip, st, dup, silent, vcum, scum, ev};
+}
+
+// ---- DOM: controls ---------------------------------------------------------------
+{
+  const seg = $('#seg-speed');
+  DATA.meta.speeds.forEach(v => {
+    const b = document.createElement('button');
+    b.dataset.v = v; b.textContent = v + ' km/h';
+    seg.append(b);
+  });
+}
+function syncSegs() {
+  $$('#seg-speed button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.v === S.speed)));
+  $$('#seg-dir button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === S.dir)));
+  $$('#seg-vs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === S.vs)));
+  $('#rate').value = String(S.rate);
+}
+$('#seg-speed').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.speed = +b.dataset.v; S.t = 0; scenarioChanged();
+});
+$('#seg-dir').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.dir = b.dataset.v; S.t = 0; scenarioChanged();
+});
+$('#seg-vs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.vs = b.dataset.v; scenarioChanged();
+});
+$('#rate').addEventListener('change', e => { S.rate = +e.target.value; });
+$('#play').addEventListener('click', () => togglePlay());
+$('#scrub').addEventListener('input', e => { S.t = +e.target.value; render(); });
+function togglePlay(force) {
+  S.playing = force === undefined ? !S.playing : force;
+  if (S.playing && S.t >= dur() - 0.05) S.t = 0;
+  $('#play').textContent = S.playing ? '❚❚ Pause' : '▶ Play';
+}
+document.addEventListener('keydown', e => {
+  if (e.target !== document.body) return;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  else if (e.code === 'ArrowRight') { S.t = Math.min(dur(), S.t + 5); render(); }
+  else if (e.code === 'ArrowLeft') { S.t = Math.max(0, S.t - 5); render(); }
+  else if (e.code === 'Home') { S.t = 0; render(); }
+});
+
+// theme
+function effectiveDark() {
+  const t = root.dataset.theme;
+  return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function themeChanged() {
+  cssCache = null;
+  $('#theme').textContent = effectiveDark() ? 'Light mode' : 'Dark mode';
+  applyBadgeColours();
+  panels.forEach(p => p.dirty = true);
+  render();
+}
+$('#theme').addEventListener('click', () => {
+  root.dataset.theme = effectiveDark() ? 'light' : 'dark';
+  themeChanged();
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeChanged);
+
+// ---- route strip -----------------------------------------------------------------
+{
+  const legs = $('#legs');
+  DATA.meta.legs.forEach(l => {
+    const d = document.createElement('div');
+    d.className = 'leg'; d.dataset.id = l.id;
+    d.style.flex = String(l.b - l.a);
+    d.innerHTML = '<b>' + l.id + '</b><span class="ln">&nbsp;· ' + LEGN[l.name] + '</span>';
+    d.title = LEGN[l.name];
+    legs.append(d);
+  });
+  const v = document.createElement('div'); v.className = 'veh'; v.id = 'veh';
+  legs.append(v);
+}
+
+// ---- panels ------------------------------------------------------------------------
+const HGT = 138, X0 = 58, LANE_H = 22, LANE_GAP = 8, Y0 = 10;
+const laneY = k => Y0 + k * (LANE_H + LANE_GAP);
+
+function makePanel(side) {
+  const el = document.createElement('article');
+  el.className = 'card panel';
+  el.innerHTML = `
+    <div class="p-head"><span class="badge"></span><h2></h2></div>
+    <p class="p-blurb"></p>
+    <div class="status" data-tone="ok"><i></i><span class="s-text"></span></div>
+    <div class="lanes"><canvas role="img"></canvas></div>
+    <div class="kpis">
+      <div class="kpi"><div class="k-l">Voice delivered (last 5 s)</div>
+        <div class="k-v"><span class="v-voice">–</span><small>%</small></div>
+        <div class="bar"><i class="v-bar" style="width:0"></i></div></div>
+      <div class="kpi"><div class="k-l">Voice quality, MOS (last 10 s)</div>
+        <div class="k-v"><span class="v-mos">–</span></div>
+        <div class="k-s v-moslab"></div></div>
+      <div class="kpi"><div class="k-l">Voice silence so far</div>
+        <div class="k-v"><span class="v-out">0.0</span><small>s</small></div>
+        <div class="k-s v-outn"></div></div>
+      <div class="kpi"><div class="k-l">Live video</div>
+        <div class="k-v"><span class="v-vid">–</span></div>
+        <div class="k-s v-vids"></div></div>
+      <div class="kpi"><div class="k-l">Extra traffic sent (overhead)</div>
+        <div class="k-v"><span class="v-ovh">–</span><small>%</small></div>
+        <div class="k-s v-bulk"></div></div>
+      <div class="kpi"><div class="k-l">Satellite data used</div>
+        <div class="k-v"><span class="v-sat">–</span><small>MB</small></div>
+        <div class="k-s">a cost proxy</div></div>
+    </div>
+    <div class="gauge"><div class="g-row"><span class="g-l"></span><b class="g-v"></b></div>
+      <div class="g-bar"><i></i><u></u></div></div>`;
+  $('#panels').append(el);
+  const cv = $('canvas', el);
+  const p = {
+    side, el, cv, cx: cv.getContext('2d'), off: document.createElement('canvas'),
+    W: 0, dpr: 0, dirty: true, pol: side === 'L' ? S.vs : 'P',
+    q: s => $(s, el),
+  };
+  cv.addEventListener('pointerdown', e => { p.drag = true; cv.setPointerCapture(e.pointerId); scrubTo(p, e); });
+  cv.addEventListener('pointermove', e => { if (p.drag) scrubTo(p, e); showTip(p, e); });
+  cv.addEventListener('pointerup', () => { p.drag = false; });
+  cv.addEventListener('pointerleave', () => { $('#tip').style.opacity = 0; });
+  new ResizeObserver(() => { if (sizePanel(p)) render(); }).observe($('.lanes', el));
+  return p;
+}
+const panels = [makePanel('L'), makePanel('R')];
+
+function xToT(p, e) {
+  const r = p.cv.getBoundingClientRect();
+  const x = e.clientX - r.left, x1 = p.W - 10;
+  return Math.min(dur(), Math.max(0, (x - X0) / (x1 - X0) * dur()));
+}
+function scrubTo(p, e) { S.t = xToT(p, e); render(); }
+function showTip(p, e) {
+  const tip = $('#tip'), t = xToT(p, e), i = Math.min(prepRun(skey(), p.pol).n - 1, Math.floor(t / DT));
+  const R = prepRun(skey(), p.pol), u = scen().use[i];
+  const usable = TECHS.filter((_, k) => (u >> k) & 1).map(k => TSHORT[k]);
+  const lines = ['t = ' + f(t, 1) + ' s',
+    'carrying: ' + (R.act[i] < 3 ? TSHORT[TECHS[R.act[i]]] : '—') +
+      (R.dup[i] ? ' + ' + TSHORT[TECHS[R.dup[i] - 1]] + ' (duplicate)' : ''),
+    'usable: ' + (usable.length ? usable.join(', ') : 'nothing')];
+  if (R.silent[i] >= 3) lines.push('voice silent ' + f(R.silent[i] * DT, 1) + ' s');
+  tip.textContent = lines.join('\n');
+  tip.style.left = Math.min(innerWidth - 190, e.clientX + 14) + 'px';
+  tip.style.top = (e.clientY + 16) + 'px';
+  tip.style.opacity = 1;
+}
+
+function sizePanel(p) {
+  const w = Math.floor($('.lanes', p.el).clientWidth), dpr = window.devicePixelRatio || 1;
+  if (!w || (w === p.W && dpr === p.dpr)) return false;
+  p.W = w; p.dpr = dpr;
+  for (const c of [p.cv, p.off]) { c.width = Math.round(w * dpr); c.height = Math.round(HGT * dpr); }
+  p.cv.style.height = HGT + 'px';
+  p.dirty = true;
+  return true;
+}
+
+function segs(n, test, fn) {
+  let a = -1;
+  for (let i = 0; i < n; i++) {
+    if (test(i)) { if (a < 0) a = i; }
+    else if (a >= 0) { fn(a, i); a = -1; }
+  }
+  if (a >= 0) fn(a, n);
+}
+function rr(g, x, y, w, h, r) {
+  g.beginPath();
+  if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h);
+}
+let hatch = null, hatchInk = '';
+function hatchPattern(g) {
+  if (hatch && hatchInk === css('--ink-3')) return hatch;
+  const c = document.createElement('canvas'); c.width = c.height = 8;
+  const h = c.getContext('2d');
+  h.strokeStyle = css('--ink-3'); h.lineWidth = 1.2; h.globalAlpha = .75;
+  h.beginPath(); h.moveTo(-1, 9); h.lineTo(9, -1); h.moveTo(-1, 1); h.lineTo(1, -1); h.moveTo(7, 9); h.lineTo(9, 7); h.stroke();
+  hatchInk = css('--ink-3');
+  return hatch = g.createPattern(c, 'repeat');
+}
+
+function drawStatic(p) {
+  const key = skey(), sc = scen(), R = prepRun(key, p.pol);
+  const n = sc.n, W = p.W, x0 = X0, x1 = W - 10;
+  const X = i => x0 + (i / n) * (x1 - x0);
+  const g = p.off.getContext('2d');
+  g.setTransform(p.dpr, 0, 0, p.dpr, 0, 0);
+  g.clearRect(0, 0, W, HGT);
+  g.font = '12px ui-sans-serif, system-ui, "Segoe UI", sans-serif';
+  g.textBaseline = 'middle';
+
+  for (let k = 0; k < 3; k++) {                        // lane tracks + labels
+    g.fillStyle = css('--surface-2');
+    rr(g, x0, laneY(k), x1 - x0, LANE_H, 4); g.fill();
+    g.fillStyle = css('--ink-2');
+    g.fillText(TSHORT[TECHS[k]], 4, laneY(k) + LANE_H / 2);
+  }
+  for (let k = 0; k < 3; k++) {                        // usable (pale)
+    g.globalAlpha = .26; g.fillStyle = techColor(k);
+    segs(n, i => (sc.use[i] >> k) & 1, (a, b) =>
+      g.fillRect(X(a), laneY(k), Math.max(1, X(b) - X(a)), LANE_H));
+  }
+  g.globalAlpha = 1;
+  g.fillStyle = hatchPattern(g);                       // no link at all
+  segs(n, i => sc.use[i] === 0, (a, b) =>
+    g.fillRect(X(a), laneY(0) - 4, Math.max(1, X(b) - X(a)), laneY(2) + LANE_H - laneY(0) + 8));
+  g.globalAlpha = .15; g.fillStyle = css('--pol-P');   // protection window
+  segs(n, i => R.win[i], (a, b) =>
+    g.fillRect(X(a), laneY(0) - 5, Math.max(1.5, X(b) - X(a)), laneY(2) + LANE_H - laneY(0) + 10));
+  g.globalAlpha = .95;
+  for (let k = 0; k < 3; k++) {                        // active (solid)
+    g.fillStyle = techColor(k);
+    segs(n, i => R.act[i] === k, (a, b) =>
+      g.fillRect(X(a), laneY(k), Math.max(1, X(b) - X(a)), LANE_H));
+  }
+  for (let k = 0; k < 3; k++) {                        // duplicate copy (thin)
+    g.fillStyle = techColor(k);
+    segs(n, i => R.dup[i] - 1 === k, (a, b) =>
+      g.fillRect(X(a), laneY(k) + LANE_H * .32, Math.max(1, X(b) - X(a)), LANE_H * .36));
+  }
+  g.globalAlpha = 1;
+
+  const vy = laneY(2) + LANE_H + 14;                   // voice row
+  g.fillStyle = css('--surface-2'); rr(g, x0, vy, x1 - x0, 12, 3); g.fill();
+  g.fillStyle = css('--ink-2'); g.fillText('Voice', 4, vy + 6);
+  g.fillStyle = css('--bad');
+  for (const [s0, d] of R.run.gaps) {
+    const xa = x0 + (s0 / sc.dur) * (x1 - x0), xb = x0 + ((s0 + d) / sc.dur) * (x1 - x0);
+    g.fillRect(xa, vy, Math.max(2, xb - xa), 12);
+  }
+  g.fillStyle = css('--ink-3'); g.textBaseline = 'alphabetic';   // time axis
+  g.font = '11px ui-sans-serif, system-ui, "Segoe UI", sans-serif';
+  const pxPerS = (x1 - x0) / sc.dur;
+  const step = [30, 60, 120, 180, 300].find(v => v * pxPerS >= 54) || 300;
+  for (let s = 0; s <= sc.dur; s += step) {
+    const x = x0 + (s / sc.dur) * (x1 - x0);
+    g.fillRect(x, vy + 16, 1, 3);
+    g.fillText(s + ' s', Math.min(x - 8, W - 28), HGT - 3);
+  }
+  p.cv.setAttribute('aria-label', 'Timeline for ' + p.pol + ' at ' + S.speed + ' km/h ' + S.dir +
+    ': which link carries traffic over the journey, protection windows and audible voice outages.');
+}
+
+function paint(p) {
+  if (!p.W) return;
+  if (p.dirty) { drawStatic(p); p.dirty = false; }
+  const c = p.cx;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, p.cv.width, p.cv.height);
+  c.drawImage(p.off, 0, 0);
+  c.setTransform(p.dpr, 0, 0, p.dpr, 0, 0);
+  const x1 = p.W - 10, x = X0 + (S.t / dur()) * (x1 - X0);
+  c.globalAlpha = .62; c.fillStyle = css('--surface');            // not-yet-played veil
+  c.fillRect(x, 0, x1 - x + 10, HGT - 16);
+  c.globalAlpha = 1; c.fillStyle = css('--ink');
+  c.fillRect(x - 0.75, 2, 1.5, HGT - 20);
+}
+
+// ---- badges ----------------------------------------------------------------------
+function applyBadgeColours() {
+  const left = panels[0].el;
+  $('.badge', left).style.setProperty('--c', css('--pol-' + panels[0].pol));
+  $('.badge', panels[1].el).style.setProperty('--c', css('--pol-P'));
+  $('#feed').style.setProperty('--c-left', css('--pol-' + panels[0].pol));
+}
+
+// ---- per-frame updates ----------------------------------------------------------------
+const MOS_LAB = m => m >= 4.0 ? 'Good' : m >= 3.6 ? 'Fair' : m >= 3.1 ? 'Poor' : 'Bad';
+
+function updatePanel(p, i, s) {
+  const key = skey(), R = prepRun(key, p.pol), sc = scen(), run = R.run;
+  const q = p.q;
+  const a = R.act[i], link = a < 3 ? TSHORT[TECHS[a]] : 'no link';
+  const dupL = R.dup[i] ? TSHORT[TECHS[R.dup[i] - 1]] : null;
+  const sil = R.silent[i] * DT;
+
+  // status sentence
+  let tone = 'ok', text;
+  if (sil >= 0.3) {
+    tone = 'bad';
+    text = 'Voice silent for ' + f(sil, 1) + ' s' +
+      (sc.use[i] === 0 ? ': no link is usable at all' : ': reconnecting on ' + link);
+  } else if (p.pol === 'P' && R.win[i]) {
+    tone = 'win';
+    text = dupL
+      ? 'Protected window: voice and telemetry on ' + link + ' + ' + dupL +
+        ', video pre-switching, bulk deferred'
+      : 'Protected window opening: attaching the partner link, bulk deferred';
+  } else if (p.pol === 'B2') {
+    text = dupL ? 'Everything duplicated on ' + link + ' + ' + dupL + ' (always)' : 'All traffic on ' + link;
+  } else {
+    text = 'All traffic on ' + link + ' (single path)';
+  }
+  const st = q('.status'); st.dataset.tone = tone; q('.s-text').textContent = text;
+
+  // voice delivery last 5 s
+  const lo = Math.max(0, i - 49);
+  const got = R.vcum[i + 1] - R.vcum[lo], exp = (i - lo + 1) * 5;
+  const pct = Math.min(100, 100 * got / exp);
+  q('.v-voice').textContent = f(pct, 0);
+  q('.v-bar').style.width = pct + '%';
+
+  // MOS
+  const mos = run.sec.mos[s];
+  const mv = q('.v-mos'); mv.textContent = f(mos, 2);
+  mv.parentElement.classList.toggle('bad', mos < 3.1);
+  q('.v-moslab').textContent = MOS_LAB(mos) + (mos < 3.1 ? ' (not recommended)' : '');
+
+  // silence so far
+  let tot = 0, cnt = 0;
+  for (const [s0, d] of run.gaps) {
+    if (s0 >= S.t) break;
+    tot += Math.min(d, S.t - s0); cnt++;
+  }
+  const ov = q('.v-out'); ov.textContent = f(tot, 1);
+  ov.parentElement.classList.toggle('bad', tot >= 1);
+  q('.v-outn').textContent = cnt + (cnt === 1 ? ' audible gap' : ' audible gaps');
+
+  // video
+  const stalled = R.st[i] === 1;
+  const stallS = Math.max(0, R.scum[i + 1] - 1.0);
+  const vv = q('.v-vid'); vv.textContent = stalled ? (S.t < 1.5 ? 'Starting' : 'Stalled') : 'Playing';
+  vv.parentElement.classList.toggle('bad', stalled && S.t >= 1.5);
+  q('.v-vids').textContent = f(stallS, 1) + ' s stalled so far';
+
+  // cost
+  q('.v-ovh').textContent = f(run.sec.ovh[s], 1);
+  q('.v-bulk').textContent = 'bulk delivered ' + run.sec.bulk[s].toLocaleString('en-US') + ' MB';
+  q('.v-sat').textContent = f(run.sec.sat[s], 1);
+
+  // forecast gauge
+  const gl = q('.g-l'), gv = q('.g-v'), bar = $('.g-bar', p.el);
+  if (run.sec.tlife) {
+    const tl = run.sec.tlife[s], g = DATA.meta.tGuard;
+    gl.textContent = 'Forecast life of the active link (guard at ' + f(g, 1) + ' s)';
+    gv.textContent = tl == null ? '–' : f(tl, 1) + ' s';
+    $('i', bar).style.width = (tl == null ? 0 : Math.min(100, tl * 10)) + '%';
+    $('u', bar).style.left = (g * 10) + '%'; $('u', bar).hidden = false;
+  } else {
+    gl.textContent = 'No forecast: this gateway reacts only after the link has failed';
+    gv.textContent = '';
+    $('i', bar).style.width = '0%'; $('u', bar).hidden = true;
+  }
+}
+
+// event feed
+let feedAll = [], feedShown = -1, feedKey = '';
+function buildFeed() {
+  const L = prepRun(skey(), panels[0].pol), Rr = prepRun(skey(), 'P');
+  feedAll = [
+    ...scen().env.map(([t, tech, up]) =>
+      ({t, who: 'env', tag: 'Route', text: TSHORT[tech] + (up ? ' usable again' : ' became unusable')})),
+    ...L.ev.map(e => ({...e, who: 'L', tag: panels[0].pol})),
+    ...Rr.ev.map(e => ({...e, who: 'R', tag: 'P'})),
+  ].sort((a, b) => a.t - b.t);
+  feedShown = -1;
+}
+function updateFeed() {
+  let lo = 0, hi = feedAll.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (feedAll[m].t <= S.t) lo = m + 1; else hi = m; }
+  if (lo === feedShown) return;
+  feedShown = lo;
+  const ol = $('#feed'); ol.textContent = '';
+  if (!lo) { const li = document.createElement('li'); li.innerHTML = '<span></span><span></span><span class="empty">Press play. Events appear here as the journey unfolds.</span>'; ol.append(li); return; }
+  for (let k = lo - 1; k >= Math.max(0, lo - 10); k--) {
+    const e = feedAll[k], li = document.createElement('li');
+    li.dataset.who = e.who; if (e.bad) li.className = 'bad';
+    const t = document.createElement('time'); t.textContent = f(e.t, 1) + ' s';
+    const d = document.createElement('span'); d.className = 'd';
+    const tx = document.createElement('span'); tx.className = 't';
+    const w = document.createElement('span'); w.className = 'w'; w.textContent = e.tag;
+    tx.append(w, document.createTextNode(e.text));
+    li.append(t, d, tx); ol.append(li);
+  }
+}
+
+// results table
+function renderTable() {
+  const tb = $('#tbl'), fl = DATA.fleet, key = skey();
+  const cols = [
+    ['int_avoid_s', 'Avoidable voice silence (s)', 2],
+    ['int_total_s', 'All voice silence (s)', 2],
+    ['mos_worst', 'Worst 10 s MOS', 2],
+    ['overhead_pct', 'Extra traffic (%)', 1],
+    ['sat_mb', 'Satellite (MB)', 0],
+    ['video_stall_s', 'Video stalled (s)', 1],
+    ['handovers', 'Handovers', 1],
+  ];
+  let h = '<thead><tr><th>Gateway</th>' + cols.map(c => '<th>' + c[1] + '</th>').join('') + '</tr></thead><tbody>';
+  for (const pol of ['B0', 'B1', 'B2', 'P']) {
+    const s = DATA.scenarios[key].runs[pol].sum;
+    const hl = (pol === S.vs || pol === 'P') ? ' class="hl"' : '';
+    h += '<tr' + hl + '><td><b>' + pol + '</b> ' + SHORT[pol] + '</td>';
+    for (const [k, , d] of cols) {
+      const fv = fl && fl[pol] && fl[pol][k];
+      h += '<td>' + f(s[k], d) + (fv ? '<small>fleet ' + f(fv[0], d) + ' ± ' + f(fv[1], d) + '</small>' : '') + '</td>';
+    }
+    h += '</tr>';
+  }
+  tb.innerHTML = h + '</tbody>';
+  const hole = DATA.scenarios[key].runs.P.sum.cov_hole_s;
+  $('#tbl-note').textContent =
+    'Big figures: this single journey (' + S.speed + ' km/h, ' + S.dir + ', seed 1). Small grey: fleet mean ± 95% CI' +
+    (fl ? ' over ' + fl.n + ' journeys (4 speeds × 2 directions × 20 seeds)' : '') +
+    '. “Avoidable” leaves out the time when no link at all was usable (' + f(hole, 1) + ' s on this journey, in dropouts no gateway can serve; B2 confirms the floor).';
+}
+
+// ---- main render --------------------------------------------------------------------------
+function render() {
+  const sc = scen();
+  S.t = Math.min(S.t, sc.dur);
+  const i = Math.min(sc.n - 1, Math.floor(S.t / DT));
+  const s = Math.min(sc.km.length - 1, Math.floor(S.t));
+  for (const p of panels) { paint(p); updatePanel(p, i, s); }
+  updateFeed();
+  // route
+  const km = sc.km[s], total = DATA.meta.routeKm;
+  $('#veh').style.left = (100 * km / total) + '%';
+  const leg = DATA.meta.legs.find(l => km >= l.a && km <= l.b) || DATA.meta.legs[0];
+  $$('.leg').forEach(d => d.classList.toggle('on', d.dataset.id === leg.id));
+  $('#route-l').textContent = 'Leg ' + leg.id + ' · ' + LEGN[leg.name] + ' · ' + f(km, 1) + ' of ' + f(total, 0) + ' km';
+  $('#route-r').textContent = sc.spd[s] + ' km/h · ' + (S.dir === 'outbound' ? 'depot → remote site' : 'remote site → depot');
+  // clock + scrubber
+  $('#clock').textContent = f(S.t, 1) + ' / ' + f(sc.dur, 0) + ' s';
+  const sr = $('#scrub');
+  if (document.activeElement !== sr) sr.value = S.t;
+}
+
+function scenarioChanged() {
+  panels[0].pol = S.vs;
+  panels.forEach(p => { p.dirty = true; });
+  $('#scrub').max = dur();
+  applyBadgeColours();
+  syncPanelHeads();
+  buildFeed();
+  renderTable();
+  syncSegs();
+  render();
+}
+function syncPanelHeads() {
+  for (const p of panels) {
+    $('.badge', p.el).textContent = p.pol;
+    $('h2', p.el).textContent = POLS[p.pol].title;
+    $('.p-blurb', p.el).textContent = POLS[p.pol].blurb;
+  }
+}
+
+// ---- loop ---------------------------------------------------------------------------------------
+let last = 0;
+function loop(ts) {
+  if (S.playing) {
+    const dt = Math.min(0.1, (ts - last) / 1000);
+    S.t = Math.min(dur(), S.t + dt * S.rate);
+    if (S.t >= dur()) togglePlay(false);
+    render();
+  }
+  last = ts;
+  requestAnimationFrame(loop);
+}
+
+// ---- init ---------------------------------------------------------------------------------------------
+$('#theme').textContent = effectiveDark() ? 'Light mode' : 'Dark mode';
+panels.forEach(sizePanel);
+$('#scrub').max = dur();
+scenarioChanged();
+if (new URLSearchParams(location.hash.slice(1)).get('play') === '1') togglePlay(true);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
