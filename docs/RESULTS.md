@@ -3,7 +3,7 @@
 Everything on this page is generated from logged runs by script
 (`python scripts/run_all.py`). Nothing is drawn by hand.
 
-**Interactive replay:** open [`dashboard.html`](dashboard.html) to play any of
+**Interactive replay:** open [`index.html`](index.html) to play any of
 8 journeys and compare our gateway with a baseline side by side.
 
 ## How to read these results
