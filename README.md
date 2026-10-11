@@ -43,6 +43,8 @@ results/            everything generated: csv, figures/, predictor.pkl
 docs/               guidelines (deliverable 5), deck notes, AI declaration
 ```
 
+**Results:** [docs/RESULTS.md](docs/RESULTS.md) (figures with explanations) and the interactive [dashboard](docs/dashboard.html).
+
 ## Reproduce everything
 
 ```bash

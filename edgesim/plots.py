@@ -66,17 +66,19 @@ def fig_tradeoff(rows, out: Path):
                     color=C[p], mec="white", mew=1.5)
         label = {"B0": "B0 single link", "B1": "B1 minRTT",
                  "B2": "B2 duplicate all", "P": "P (ours)"}[p]
-        dx, dy, ha = {"B0": (10, 6, "left"), "B1": (12, -30, "left"),
-                      "B2": (-10, 10, "right"), "P": (10, 22, "left")}[p]
+        dx, dy, ha = {"B0": (10, 6, "left"), "B1": (26, 2, "left"),
+                      "B2": (-10, 10, "right"), "P": (10, 40, "left")}[p]
         ax.annotate(f"{label}\n{y:.2f} s / {x:.1f}%", (x, y),
                     textcoords="offset points", xytext=(dx, dy),
-                    ha=ha, fontsize=10, color=INK)
+                    ha=ha, fontsize="medium", color=INK)
     ax.set_xscale("symlog", linthresh=10)
-    ax.set_xlabel("Bandwidth overhead (sent / useful − 1, %)")
+    ax.set_xticks([0, 10, 50])
+    ax.set_xticklabels(["0%", "10%", "50%"])
+    ax.set_xlabel("Extra traffic sent (overhead)")
     ax.set_ylabel("Avoidable voice interruption per journey (s)")
-    ax.set_title("Avoidable interruption vs overhead — mean ± 95% CI, full grid\n"
-                 "(coverage holes no link could serve are excluded; "
-                 "raw totals in summary.csv)", fontsize=11)
+    ax.set_title("Avoidable voice interruption vs extra traffic\n"
+                 "mean ± 95% CI, 160 simulated journeys per gateway",
+                 fontsize="medium")
     fig.savefig(out / "fig1_tradeoff.png")
     plt.close(fig)
 
